@@ -134,7 +134,7 @@ def md5(archivo_string: str):
 
     return md5(archivo_string)
 
-def insertar_data(dictionary,time):
+def insertar_data(dictionary,time, eTag):
 
     # Crear el cliente de DynamoDB
     dynamodb = boto3.client('dynamodb')
@@ -142,7 +142,8 @@ def insertar_data(dictionary,time):
     # Datos a insertar en la tabla
     data_to_insert = {
         'timestamp': {'S': time},  # Utiliza el timestamp
-        'Data': {'S': json.dumps(dictionary)}
+        'Data': {'S': json.dumps(dictionary)},
+        'Identificator': {'S':eTag},
     }
 
     # Insertar los datos en la tabla
@@ -163,6 +164,7 @@ def lambda_handler(event, context):
     # Nombre del bucket y archivo a leer
     bucket_name = 'ai-technical-test-danilo'
     file_name = 'plano.txt'
+
     # Inicializa el cliente de S3
     s3_client = boto3.client('s3')
 
@@ -195,11 +197,26 @@ def lambda_handler(event, context):
             dictionary['hash'] = str(hash)
 
             logger.info(f'Valor del diccionario: {dictionary}')
-            insertar_data(dictionary=dictionary,time=timeStamp)
-            return {
-                'statusCode': 200,
-                'body': 'Archivo leído correctamente desde S3'
-            }
+            insertar_data(dictionary=dictionary,time=timeStamp, eTag=eTag)
+
+            # Se elimina el archivo del bucket luego de almacenar la informacion en ls DB
+            response_ho = s3_client.head_object(Bucket=bucket_name, Key=file_name)
+
+            if response_ho["ResponseMetadata"]["HTTPHeaders"]["etag"][1:-1] == eTag:
+                # El ETag coincide, por lo tanto, se puede eliminar el objeto
+                response_do = s3_client.delete_object(Bucket=bucket_name, Key=file_name)
+                logger.info(f'El objeto con eTag {eTag}, se ha eliminado')
+                return {
+                    'statusCode': 200,
+                    'body': 'Archivo procesado y eliminado correctamente del bucket de S3'
+                }
+            else:
+                # El ETag no coincide, no se elimina el objeto
+                logger.info(f'No Se elimina el objecto, eTag no Coincide')
+                return {
+                    'statusCode': 400,
+                    'body': 'El ETag del objeto no coincide, el archivo no se eliminará'
+                }
         else:  
             logger.error('Acción del evento inesperada: %s', event_name)
             raise ValueError('Acción del evento inesperada')
