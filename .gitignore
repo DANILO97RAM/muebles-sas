@@ -1,8 +1,0 @@
-src/cffi
-src/cffi-1.16.0.dist-info
-src/cryptography
-src/cryptography-42.0.5.dist-info
-src/pycparser
-src/pycparser-2.21.dist-info
-src/_cffi_backend.cpython-39-x86_64-linux-gnu.so
-nuevo/
